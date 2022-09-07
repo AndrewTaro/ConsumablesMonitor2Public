@@ -1,0 +1,99 @@
+(def element ShipNameItem (_entityId:number) layout=true
+	(scope
+		(var markerEntity:gfx = "$datahub.getEntity(_entityId)")
+
+		(macro GET_MARKER_ENTITY_COMPONENT 'avatar')
+		(macro GET_MARKER_ENTITY_COMPONENT 'data')
+		(var shipName:str = "avatarComponent ? avatarComponent.ship.ref.ship.nameUpper : ''")
+		(var consData:array = "dataComponent ? dataComponent.data['consMonitor']: []" (event "dataComponent.evChanged"))
+	)
+	(style
+		(align = "middle|center")
+	)
+	(element ShipNameConsumablesRenderer "consData")
+	(element SimpleMarkerTextItem "shipName")
+)
+
+(def element BuildingNameItem (_entityId:number) layout=true
+	(scope
+		(var markerEntity:gfx = "$datahub.getEntity(_entityId)")
+
+		(macro GET_MARKER_ENTITY_COMPONENT 'building')
+		(macro GET_MARKER_ENTITY_COMPONENT 'data')
+		(var buildingName:str = "buildingComponent 	? buildingComponent.name	? tr(buildingComponent.name)
+																				: buildingComponent.typeIDS
+													: ''")
+		(var consData:array = "dataComponent ? dataComponent.data['consMonitor']: []" (event "dataComponent.evChanged"))	
+	)
+	(style
+		(align = "middle|center")
+	)
+	(element ShipNameConsumablesRenderer "consData")
+	(element SimpleMarkerTextItem "toUpper(buildingName)")
+)
+
+(def element ShipNameConsumablesRenderer(_consData:array) layout=true
+	(hblock
+		(controller $Repeat renderer='ShipNameConsumableItem' layout=true
+			(bind count "_consData.length")
+			(args "_consData[$index]")
+		)
+	)
+)
+
+(def element ShipNameConsumableItem (_consData:dict) layout=true
+	(scope
+		(var consIconPath:str = "'url:../consumables/consumable_' + _consData['icon'] + '.png'")
+		(var consNum:str = "_consData['num']")
+		(var consState:str = "_consData['currentState']")
+		(var consEndTime:number = "_consData['endTime']")
+		#0: READY, 1: AT_WORK, 2: RELOAD, 3: NO_AMMO, 4:PREPARATION
+		(var consStateColor:number = "  consState == 0? SC.Ui_styles.SERVICE_COLORS.WHITE:
+										consState == 1? SC.Ui_styles.SERVICE_COLORS.GREEN:
+										consState == 2 || consState == 4? SC.Ui_styles.SERVICE_COLORS.ORANGE:
+										SC.Ui_styles.SERVICE_COLORS.RED"
+		)
+
+		(var timerEntity:gfx = "$datahub.getSingleEntity(CC.timer)")
+		(var consStateTime:number = "consEndTime - timerEntity.timer.currentTime" (event "timerEntity.timer.evFrequent"))
+
+		(var cameraEntity:gfx = "$datahub.getSingleEntity(CC.camera)")
+		(var isTactical:bool = "cameraEntity.camera.isTactical" (event "cameraEntity.camera.evTacticalStateChanged"))
+		(var altVision:bool = "cameraEntity.camera.altVision" (event "cameraEntity.camera.evAltVisionChanged"))
+		(var altVisionEnabled:bool = "altVision && !isTactical")
+	)
+	(block
+		(hblock
+			(block
+				(bind visible "consState == 1 || altVisionEnabled")
+				(style
+					(bind backgroundImage "consIconPath")
+					(scaleX = 0.4)
+					(scaleY = 0.4)
+					(width = 60px)
+					(height = 60px)
+				)
+			)
+			(block
+				(bind visible "altVisionEnabled")
+				(style
+					(width = 24px)#need to be even number?
+				)
+				(element ConsumableMarkerTextItem "consState == 0? 'RDY': consState == 3? 'NONE' : countdownFormat(consStateTime)" "consStateColor")
+				(element ConsumableMarkerTextItem "consNum != 'inf'? 'x' + consNum: ' '" "consStateColor")
+			)
+		)
+	)
+)
+
+(def element ConsumableMarkerTextItem (_value:str, _color:number) layout=true
+	(class $WorldMarkerItemMargins)
+	(tf
+		(class $WorldMarkerTextItem)
+		(style
+			(bind noTranslate "false")
+			(bind textColor "_color")
+		)
+		(bind text "_value")
+	)
+)
