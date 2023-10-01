@@ -41,18 +41,50 @@
 	)
 )
 
+(def constant CM2_APPEAR_SETTINGS {
+	DURATION:	0.5,
+	HEIGHT_MAX:	-30,
+	HEIGHT_MIN:	0.0,
+	ALPHA_MIN:	0.0,
+	ALPHA_MAX:	1.0
+})
+(def constant CM2_DEFAULT_SETTINGS {
+	HEIGHT:	0.0,
+	ALPHA:	1.0
+})
+(def constant CM2_ENDING_SETTINGS {
+	DURATION:	15.0,
+	BLINK:		1.0,
+	ALPHA_MIN:	0.4,
+	ALPHA_MAX:	1.0
+})
+(def constant CM2_STATE_COLORS {
+	SC.Battle.CONSUMABLE_STATES.READY:		"SC.Ui_styles.SERVICE_COLORS.WHITE",	#READY
+	SC.Battle.CONSUMABLE_STATES.AT_WORK:	"SC.Ui_styles.SERVICE_COLORS.GREEN",	#AT_WORK
+	SC.Battle.CONSUMABLE_STATES.RELOAD:		"SC.Ui_styles.SERVICE_COLORS.ORANGE",	#RELOAD
+	SC.Battle.CONSUMABLE_STATES.NO_AMMO:	"SC.Ui_styles.SERVICE_COLORS.RED",		#NO_AMMO
+	SC.Battle.CONSUMABLE_STATES.PREPARATION:"SC.Ui_styles.SERVICE_COLORS.ORANGE"	#PREPARATION
+})
+
 (def element ShipNameConsumableItem (_consData:dict) layout=true
 	(scope
+		(event evPlayActivatedAnimation)
+		(event evPlayAboutToEndAnimation)
+		(event evPlayEndingAnimation)
+
 		(var consIconPath:str = "'url:../consumables/consumable_' + _consData['icon'] + '.png'")
 		(var consNum:str = "_consData['num']")
-		(var consState:str = "_consData['currentState']")
+		(var consState:number = "_consData['currentState']")
 		(var consEndTime:number = "_consData['endTime']")
+		
+		(var isReady:bool = "consState == SC.Battle.CONSUMABLE_STATES.READY")
+		(var isActive:bool = "consState == SC.Battle.CONSUMABLE_STATES.AT_WORK")
+		(var isReload:bool = "consState == SC.Battle.CONSUMABLE_STATES.RELOAD")
+		(var isEmpty:bool = "consState == SC.Battle.CONSUMABLE_STATES.NO_AMMO")
+		(var isPreparation:bool = "consState == SC.Battle.CONSUMABLE_STATES.PREPARATION")
+		
 		#0: READY, 1: AT_WORK, 2: RELOAD, 3: NO_AMMO, 4:PREPARATION
-		(var consStateColor:number = "  consState == 0? SC.Ui_styles.SERVICE_COLORS.WHITE:
-										consState == 1? SC.Ui_styles.SERVICE_COLORS.GREEN:
-										consState == 2 || consState == 4? SC.Ui_styles.SERVICE_COLORS.ORANGE:
-										SC.Ui_styles.SERVICE_COLORS.RED"
-		)
+		(var consStateColor:number = "CM2_STATE_COLORS[consState]")
 
 		(var timerEntity:gfx = "$datahub.getSingleEntity(CC.timer)")
 		(var consStateTime:number = "consEndTime - timerEntity.timer.currentTime" (event "timerEntity.timer.evFrequent"))
@@ -61,27 +93,83 @@
 		(var isTactical:bool = "cameraEntity.camera.isTactical" (event "cameraEntity.camera.evTacticalStateChanged"))
 		(var altVision:bool = "cameraEntity.camera.altVision" (event "cameraEntity.camera.evAltVisionChanged"))
 		(var altVisionEnabled:bool = "altVision && !isTactical")
+
+		(var consStateStr:str = "	isReady ? 'RDY' :
+									isEmpty ? 'NONE':
+									countdownFormat(consStateTime)")
+		(var consNumStr:str = "		consNum != 'inf'?
+									'x' + consNum	:
+									' '")
+
+		(var isConsumableAboutToEnd:bool = "isActive && (consStateTime <= CM2_ENDING_SETTINGS.DURATION)")
+		(var isConsumableEnding:bool = "isActive && (consStateTime <= CM2_APPEAR_SETTINGS.DURATION)")
+
+		(var animatedIconAlpha:number = "CM2_DEFAULT_SETTINGS.ALPHA" watch=false)
+		(var animatedIconMargin:number = "CM2_DEFAULT_SETTINGS.HEIGHT" watch=false)
+		(var isActivatedAnimationPlaying:bool = "false" watch=false)
+
+		(controller $Animation
+			(bindcall play  duration="CM2_APPEAR_SETTINGS.DURATION"
+							easing="Easing.cubic_out"
+							from="{ animatedIconAlpha: CM2_APPEAR_SETTINGS.ALPHA_MIN, animatedIconMargin: CM2_APPEAR_SETTINGS.HEIGHT_MAX }"
+							to=	 "{ animatedIconAlpha: CM2_APPEAR_SETTINGS.ALPHA_MAX, animatedIconMargin: CM2_APPEAR_SETTINGS.HEIGHT_MIN }"
+							(bind enabled "isActive")
+							(event "evPlayActivatedAnimation")
+			)
+			(bind isActivatedAnimationPlaying	"true"  init=false on=evAnimStarted)
+			(bind isActivatedAnimationPlaying	"false" init=false on=evAnimEnded)
+		)
+		(controller $Animation
+			(bindcall play  id='aboutToEndAnim'
+							duration="CM2_ENDING_SETTINGS.BLINK"
+							repeatCount=-1
+							easing="Easing.sine_in"
+							from="{ animatedIconAlpha: CM2_ENDING_SETTINGS.ALPHA_MAX }"
+							to=  "{ animatedIconAlpha: CM2_ENDING_SETTINGS.ALPHA_MIN }"
+							(bind enabled "isConsumableAboutToEnd && !isActivatedAnimationPlaying")
+							(event "evPlayAboutToEndAnimation")
+			)
+			(bindcall stop id='aboutToEndAnim' (event "evPlayEndingAnimation"))
+		)
+		(controller $Animation
+			(bindcall play  duration="CM2_APPEAR_SETTINGS.DURATION"
+							to=	 "{ animatedIconAlpha: CM2_APPEAR_SETTINGS.ALPHA_MIN,	 animatedIconMargin: CM2_APPEAR_SETTINGS.HEIGHT_MAX }"
+							easing="Easing.cubic_out"
+							(bind enabled "isConsumableEnding")
+							(event "evPlayEndingAnimation")
+			)
+			(bind animatedIconAlpha		"CM2_DEFAULT_SETTINGS.ALPHA" init=false on=evAnimEnded)
+			(bind animatedIconMargin	"CM2_DEFAULT_SETTINGS.HEIGHT" init=false on=evAnimEnded)
+		)
 	)
-	(block
-		(hblock
-			(block
-				(bind visible "consState == 1 || altVisionEnabled")
-				(style
-					(bind backgroundImage "consIconPath")
-					(scaleX = 0.4)
-					(scaleY = 0.4)
-					(width = 60px)
-					(height = 60px)
-				)
+
+	(dispatch evPlayActivatedAnimation (bind trigger "isActive") (bind enabled "!isActive"))
+	(dispatch evPlayAboutToEndAnimation (bind enabled "isConsumableAboutToEnd && !isActivatedAnimationPlaying"))
+	(dispatch evPlayEndingAnimation (bind trigger "isConsumableEnding") (bind enabled "isConsumableEnding"))
+
+	(hblock
+		(style
+			(height = "24px")
+		)
+		(block
+			(bind visible "isActive || altVisionEnabled")
+			(style
+				(bind backgroundImage "consIconPath")
+				(scaleX = 0.4)
+				(scaleY = 0.4)
+				(width = 60px)
+				(height = 60px)
+				(bind marginTop "animatedIconMargin")
+				(bind alpha "animatedIconAlpha")
 			)
-			(block
-				(bind visible "altVisionEnabled")
-				(style
-					(width = 24px)#need to be even number?
-				)
-				(element ConsumableMarkerTextItem "consState == 0? 'RDY': consState == 3? 'NONE' : countdownFormat(consStateTime)" "consStateColor")
-				(element ConsumableMarkerTextItem "consNum != 'inf'? 'x' + consNum: ' '" "consStateColor")
+		)
+		(block
+			(bind visible "altVisionEnabled")
+			(style
+				(width = 24px)#need to be even number?
 			)
+			(element ConsumableMarkerTextItem "consStateStr" "consStateColor")
+			(element ConsumableMarkerTextItem "consNumStr" "consStateColor")
 		)
 	)
 )
