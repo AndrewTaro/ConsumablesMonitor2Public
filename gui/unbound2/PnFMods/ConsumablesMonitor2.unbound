@@ -149,7 +149,7 @@
 
 	(hblock
 		(style
-			(height = "24px")
+			(bind height "isActive ? 24px : 'auto'")
 		)
 		(block
 			(bind visible "isActive || altVisionEnabled")
