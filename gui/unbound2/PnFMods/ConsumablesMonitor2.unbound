@@ -1,7 +1,5 @@
-(def element ShipNameItem (_entityId:number) layout=true
+(def element ShipNameItem (_markerEntity:gfx) layout=true
 	(scope
-		(var markerEntity:gfx = "$datahub.getEntity(_entityId)")
-
 		(macro GET_MARKER_ENTITY_COMPONENT 'avatar')
 		(macro GET_MARKER_ENTITY_COMPONENT 'data')
 		(var shipName:str = "avatarComponent ? avatarComponent.ship.ref.ship.nameUpper : ''")
@@ -14,10 +12,8 @@
 	(element SimpleMarkerTextItem "shipName")
 )
 
-(def element BuildingNameItem (_entityId:number) layout=true
+(def element BuildingNameItem (_markerEntity:gfx) layout=true
 	(scope
-		(var markerEntity:gfx = "$datahub.getEntity(_entityId)")
-
 		(macro GET_MARKER_ENTITY_COMPONENT 'building')
 		(macro GET_MARKER_ENTITY_COMPONENT 'data')
 		(var buildingName:str = "buildingComponent 	? buildingComponent.name	? tr(buildingComponent.name)
