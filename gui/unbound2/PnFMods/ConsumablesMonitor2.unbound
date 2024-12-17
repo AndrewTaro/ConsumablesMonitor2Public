@@ -62,6 +62,8 @@
 	SC.Battle.CONSUMABLE_STATES.PREPARATION:"SC.Ui_styles.SERVICE_COLORS.ORANGE"	#PREPARATION
 })
 
+(def constant TT_CONSUMABLESMONITOR_INSTALLED true)
+
 (def element ShipNameConsumableItem (_consData:dict) layout=true
 	(scope
 		(event evPlayActivatedAnimation)
